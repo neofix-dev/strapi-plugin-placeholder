@@ -11,7 +11,10 @@ module.exports = ({ strapi }) => {
     if(!data.url || !data.mime) {
       // If the returned data is missing a url or mime property (probably because we're doing an update)
       // then we'll need to pull these values from the upload.file plugin and merge them in.
-      const file = await strapi.entityService.findOne("plugin::upload.file", where.id);
+      const documentId = where.documentId || where.id; // Support both formats for migration
+      const file = await strapi.documents('plugin::upload.file').findOne({
+        documentId
+      });
       data.url = data.url ?? file.url;
       data.mime = data.mime ?? file.mime;
     }
