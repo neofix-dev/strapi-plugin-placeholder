@@ -1,0 +1,12 @@
+import type { Core } from '@strapi/strapi';
+declare const placeholder: ({ strapi }: {
+    strapi: Core.Strapi;
+}) => {
+    /**
+     * Generates a base64 placeholder image for the given image.
+     * @param url a local or remote image URL to generate a placeholder for
+     * @returns a base64 encoded placeholder image
+     */
+    generate(url: string): Promise<string | null>;
+};
+export default placeholder;

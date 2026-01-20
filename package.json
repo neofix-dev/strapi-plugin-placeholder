@@ -3,13 +3,31 @@
   "name": "strapi-plugin-placeholder",
   "version": "5.0.0",
   "description": "Generate base64 placeholders for Strapi images",
-  "author": {
-    "name": "@WalkingPizza",
-    "url": "https://github.com/WalkingPizza"
-  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/WalkingPizza/strapi-plugin-placeholder"
+    "url": "https://github.com/neofix-dev/strapi-plugin-placeholder"
+  },
+  "license": "MIT",
+  "type": "commonjs",
+  "exports": {
+    "./package.json": "./package.json",
+    "./strapi-server": {
+      "types": "./dist/server/src/index.d.ts",
+      "source": "./server/src/index.ts",
+      "import": "./dist/server/index.mjs",
+      "require": "./dist/server/index.js",
+      "default": "./dist/server/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "strapi-plugin build",
+    "watch": "strapi-plugin watch",
+    "watch:link": "strapi-plugin watch:link",
+    "verify": "strapi-plugin verify",
+    "test:ts:back": "run -T tsc -p server/tsconfig.json"
   },
   "strapi": {
     "name": "placeholder",
@@ -18,7 +36,7 @@
     "displayName": "Placeholder"
   },
   "engines": {
-    "node": ">=18.x.x",
+    "node": ">=20.0.0 <=22.x.x",
     "npm": ">=6.0.0"
   },
   "keywords": [
@@ -29,21 +47,21 @@
     "next",
     "nextjs"
   ],
-  "license": "MIT",
-  "peerDependencies": {
-    "@strapi/strapi": "^5.0.0",
-    "mime-types": "2.1.35",
-    "sharp": "^0.30.1",
-    "yup": "^0.32.9"
-  },
   "dependencies": {
-    "plaiceholder": "^2.3.0"
+    "plaiceholder": "^2.3.0",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
-    "eslint": "^8.12.0",
-    "eslint-config-prettier": "^8.5.0",
-    "eslint-plugin-node": "^11.1.0",
-    "prettier": "^2.6.1",
-    "yup": "^0.32.9"
+    "@strapi/sdk-plugin": "^5.4.0",
+    "@strapi/strapi": "^5.0.0",
+    "@strapi/typescript-utils": "^5.0.0",
+    "@types/mime-types": "^2.1.4",
+    "prettier": "^3.8.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "@strapi/strapi": "^5.0.0",
+    "mime-types": "^2.1.35",
+    "sharp": "^0.30.1"
   }
 }
