@@ -10,7 +10,7 @@ declare const _default: {
         validator(config: unknown): void;
     };
     services: {
-        placeholder: ({ strapi }: {
+        generator: ({ strapi }: {
             strapi: import("@strapi/types/dist/core").Strapi;
         }) => {
             generate(url: string): Promise<string>;

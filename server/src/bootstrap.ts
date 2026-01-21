@@ -1,6 +1,6 @@
 import type { Core } from '@strapi/strapi';
 import mimeTypes from 'mime-types';
-import { PLUGIN_ID } from './pluginId';
+import { getService } from './utils';
 
 interface FileData {
   url?: string;
@@ -38,11 +38,14 @@ const bootstrap = ({ strapi }: { strapi: Core.Strapi }) => {
     if (!data.url || !data.mime) {
       // If the returned data is missing a url or mime property (probably because we're doing an update)
       // then we'll need to pull these values from the upload.file plugin and merge them in.
+
       const documentId = where?.documentId || where?.id;
+
       if (documentId) {
         const file = await strapi.documents('plugin::upload.file').findOne({
           documentId,
         });
+
         if (file) {
           data.url = data.url ?? file.url;
           data.mime = data.mime ?? file.mime;
@@ -52,15 +55,15 @@ const bootstrap = ({ strapi }: { strapi: Core.Strapi }) => {
 
     if (!canGeneratePlaceholder(data)) return;
 
-    const placeholderService = strapi.plugin(PLUGIN_ID).service('placeholder');
-    data.placeholder = await placeholderService.generate(data.url!);
+    const generatorService = getService(strapi, 'generator');
+    data.placeholder = await generatorService.generate(data.url);
   };
 
   strapi.db.lifecycles.subscribe({
     models: ['plugin::upload.file'],
     beforeCreate: generatePlaceholder,
     beforeUpdate: generatePlaceholder,
-  } as unknown as Parameters<typeof strapi.db.lifecycles.subscribe>[0]);
+  });
 };
 
 export default bootstrap;

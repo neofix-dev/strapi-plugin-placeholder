@@ -2,6 +2,9 @@ import mimeTypes from "mime-types";
 import { z } from "zod";
 import { getPlaiceholder } from "plaiceholder";
 const PLUGIN_ID = "placeholder";
+const getService = (strapi, serviceName) => {
+  return strapi.plugin(PLUGIN_ID).service(serviceName);
+};
 const canGeneratePlaceholder = (file) => {
   let mime = file.mime;
   if (!mime && file.name) {
@@ -29,8 +32,8 @@ const bootstrap = ({ strapi }) => {
       }
     }
     if (!canGeneratePlaceholder(data)) return;
-    const placeholderService = strapi.plugin(PLUGIN_ID).service("placeholder");
-    data.placeholder = await placeholderService.generate(data.url);
+    const generatorService = getService(strapi, "generator");
+    data.placeholder = await generatorService.generate(data.url);
   };
   strapi.db.lifecycles.subscribe({
     models: ["plugin::upload.file"],
@@ -44,9 +47,8 @@ const register = ({ strapi }) => {
     strapi.log.warn("Upload plugin is not installed, Placeholder plugin won't be started.");
     return;
   }
-  uploadPlugin.contentTypes.file.attributes.placeholder = {
-    type: "text"
-  };
+  const fileContentType = uploadPlugin.contentTypes.file;
+  fileContentType.attributes.placeholder = { type: "text" };
 };
 const configSchema = z.object({
   size: z.number().min(4).max(64).optional()
@@ -57,7 +59,7 @@ const config = {
     configSchema.parse(config2);
   }
 };
-const placeholder = ({ strapi }) => ({
+const generator = ({ strapi }) => ({
   /**
    * Generates a base64 placeholder image for the given image.
    * @param url a local or remote image URL to generate a placeholder for
@@ -65,8 +67,7 @@ const placeholder = ({ strapi }) => ({
    */
   async generate(url) {
     try {
-      const settingsService = strapi.plugin(PLUGIN_ID).service("settings");
-      const settings2 = settingsService.get();
+      const settings2 = getService(strapi, "settings").get();
       const { base64 } = await getPlaiceholder(url, settings2);
       return base64;
     } catch (e) {
@@ -94,7 +95,7 @@ const settings = ({ strapi }) => ({
   }
 });
 const services = {
-  placeholder,
+  generator,
   settings
 };
 const index = {
@@ -106,4 +107,3 @@ const index = {
 export {
   index as default
 };
-//# sourceMappingURL=index.mjs.map

@@ -1,7 +1,13 @@
-import placeholder from './placeholder';
+import generator from './generator';
 import settings from './settings';
 
-export default {
-  placeholder,
+const services = {
+  generator,
   settings,
 };
+
+export type PluginServices = {
+  [key in keyof typeof services]: ReturnType<(typeof services)[key]>;
+};
+
+export default services;

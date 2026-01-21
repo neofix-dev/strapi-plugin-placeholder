@@ -1,5 +1,5 @@
-declare const _default: {
-    placeholder: ({ strapi }: {
+declare const services: {
+    generator: ({ strapi }: {
         strapi: import("@strapi/types/dist/core").Strapi;
     }) => {
         generate(url: string): Promise<string>;
@@ -11,4 +11,7 @@ declare const _default: {
         set(newSettings: import("./settings").PluginSettings): import("./settings").PluginSettings;
     };
 };
-export default _default;
+export type PluginServices = {
+    [key in keyof typeof services]: ReturnType<(typeof services)[key]>;
+};
+export default services;

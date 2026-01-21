@@ -1,5 +1,9 @@
 import type { Core } from '@strapi/strapi';
 
+interface ContentTypeWithAttributes {
+  attributes: Record<string, { type: string }>;
+}
+
 const register = ({ strapi }: { strapi: Core.Strapi }) => {
   const uploadPlugin = strapi.plugin('upload');
 
@@ -9,9 +13,8 @@ const register = ({ strapi }: { strapi: Core.Strapi }) => {
   }
 
   /* Update the Media Library File content type, adding the placeholder field */
-  (uploadPlugin.contentTypes.file as { attributes: Record<string, unknown> }).attributes.placeholder = {
-    type: 'text',
-  };
+  const fileContentType = uploadPlugin.contentTypes.file as unknown as ContentTypeWithAttributes;
+  fileContentType.attributes.placeholder = { type: 'text' };
 };
 
 export default register;

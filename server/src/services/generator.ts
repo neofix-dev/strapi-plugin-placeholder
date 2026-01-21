@@ -1,8 +1,8 @@
 import type { Core } from '@strapi/strapi';
 import { getPlaiceholder } from 'plaiceholder';
-import { PLUGIN_ID } from '../pluginId';
+import { getService } from '../utils';
 
-const placeholder = ({ strapi }: { strapi: Core.Strapi }) => ({
+const generator = ({ strapi }: { strapi: Core.Strapi }) => ({
   /**
    * Generates a base64 placeholder image for the given image.
    * @param url a local or remote image URL to generate a placeholder for
@@ -10,8 +10,7 @@ const placeholder = ({ strapi }: { strapi: Core.Strapi }) => ({
    */
   async generate(url: string): Promise<string | null> {
     try {
-      const settingsService = strapi.plugin(PLUGIN_ID).service('settings');
-      const settings = settingsService.get();
+      const settings = getService(strapi, 'settings').get();
       const { base64 } = await getPlaiceholder(url, settings);
       return base64;
     } catch (e) {
@@ -21,4 +20,4 @@ const placeholder = ({ strapi }: { strapi: Core.Strapi }) => ({
   },
 });
 
-export default placeholder;
+export default generator;

@@ -1,5 +1,5 @@
 import type { Core } from '@strapi/strapi';
-declare const placeholder: ({ strapi }: {
+declare const generator: ({ strapi }: {
     strapi: Core.Strapi;
 }) => {
     /**
@@ -9,4 +9,4 @@ declare const placeholder: ({ strapi }: {
      */
     generate(url: string): Promise<string | null>;
 };
-export default placeholder;
+export default generator;
