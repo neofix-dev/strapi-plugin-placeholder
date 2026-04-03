@@ -1,4 +1,5 @@
 "use strict";
+Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toStringTag]: { value: "Module" } });
 const mimeTypes = require("mime-types");
 const zod = require("zod");
 const plaiceholder = require("plaiceholder");
@@ -107,4 +108,4 @@ const index = {
   config,
   services
 };
-module.exports = index;
+exports.default = index;
