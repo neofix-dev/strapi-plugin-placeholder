@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package",
   "name": "strapi-plugin-placeholder",
-  "version": "5.0.1",
+  "version": "5.0.2",
   "description": "Generate base64 placeholders for Strapi images",
   "repository": {
     "type": "git",
@@ -48,7 +48,9 @@
     "nextjs"
   ],
   "dependencies": {
+    "mime-types": "^2.1.35",
     "plaiceholder": "^2.3.0",
+    "sharp": "^0.34.5",
     "zod": "^3.23.0"
   },
   "devDependencies": {
@@ -60,8 +62,6 @@
     "typescript": "^5.0.0"
   },
   "peerDependencies": {
-    "@strapi/strapi": "^5.0.0",
-    "mime-types": "^2.1.35",
-    "sharp": "^0.34.5"
+    "@strapi/strapi": "^5.0.0"
   }
 }
