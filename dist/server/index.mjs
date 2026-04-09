@@ -51,10 +51,11 @@ const register = ({ strapi }) => {
   fileContentType.attributes.placeholder = { type: "text" };
 };
 const configSchema = z.object({
-  size: z.number().min(4).max(64).optional()
+  size: z.number().min(4).max(64).optional(),
+  removeAlpha: z.boolean().optional()
 }).strict();
 const config = {
-  default: {},
+  default: { size: 10 },
   validator(config2) {
     configSchema.parse(config2);
   }

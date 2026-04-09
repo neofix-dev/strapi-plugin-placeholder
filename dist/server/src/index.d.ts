@@ -6,7 +6,9 @@ declare const _default: {
         strapi: import('@strapi/types/dist/core').Strapi;
     }) => void;
     config: {
-        default: {};
+        default: {
+            size: number;
+        };
         validator(config: unknown): void;
     };
     services: {
