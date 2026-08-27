@@ -7,8 +7,8 @@ declare const services: {
     settings: ({ strapi }: {
         strapi: import('@strapi/types/dist/core').Strapi;
     }) => {
-        get(): import('./settings').PluginSettings;
-        set(newSettings: import('./settings').PluginSettings): import('./settings').PluginSettings;
+        get(): import('../config').PlaceholderSettings;
+        set(newSettings: import('../config').PlaceholderConfig): import('../config').PlaceholderConfig;
     };
 };
 export type PluginServices = {

@@ -2,9 +2,13 @@
 Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toStringTag]: { value: "Module" } });
 const mimeTypes = require("mime-types");
 const zod = require("zod");
-const plaiceholder = require("plaiceholder");
+const promises = require("node:fs/promises");
+const path = require("node:path");
+const sharp = require("sharp");
 const _interopDefault = (e) => e && e.__esModule ? e : { default: e };
 const mimeTypes__default = /* @__PURE__ */ _interopDefault(mimeTypes);
+const path__default = /* @__PURE__ */ _interopDefault(path);
+const sharp__default = /* @__PURE__ */ _interopDefault(sharp);
 const PLUGIN_ID = "placeholder";
 const getService = (strapi, serviceName) => {
   return strapi.plugin(PLUGIN_ID).service(serviceName);
@@ -54,29 +58,55 @@ const register = ({ strapi }) => {
   const fileContentType = uploadPlugin.contentTypes.file;
   fileContentType.attributes.placeholder = { type: "text" };
 };
+const PLACEHOLDER_FORMATS = ["webp", "jpeg", "png", "avif"];
 const configSchema = zod.z.object({
-  size: zod.z.number().min(4).max(64).optional(),
+  size: zod.z.number().int().min(4).max(64).optional(),
+  format: zod.z.enum(PLACEHOLDER_FORMATS).optional(),
+  quality: zod.z.number().int().min(1).max(100).optional(),
   removeAlpha: zod.z.boolean().optional()
 }).strict();
 const config = {
-  default: { size: 10 },
+  default: {
+    size: 16,
+    format: "webp",
+    quality: 20,
+    removeAlpha: false
+  },
   validator(config2) {
     configSchema.parse(config2);
   }
+};
+const loadImage = async (strapi, url) => {
+  if (/^https?:\/\//i.test(url)) {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`${response.status} ${response.statusText}`);
+    }
+    return Buffer.from(await response.arrayBuffer());
+  }
+  return promises.readFile(path__default.default.join(strapi.dirs.static.public, url));
 };
 const generator = ({ strapi }) => ({
   /**
    * Generates a base64 placeholder image for the given image.
    * @param url a local or remote image URL to generate a placeholder for
-   * @returns a base64 encoded placeholder image
+   * @returns a base64 encoded placeholder image, or null if it could not be generated
    */
   async generate(url) {
     try {
-      const settings2 = getService(strapi, "settings").get();
-      const { base64 } = await plaiceholder.getPlaiceholder(url, settings2);
-      return base64;
+      const { size, format, quality, removeAlpha } = getService(strapi, "settings").get();
+      let pipeline = sharp__default.default(await loadImage(strapi, url)).resize(size, size, {
+        fit: "inside",
+        withoutEnlargement: true
+      });
+      if (removeAlpha) {
+        pipeline = pipeline.removeAlpha();
+      }
+      const placeholder = await pipeline.toFormat(format, { quality }).toBuffer();
+      return `data:image/${format};base64,${placeholder.toString("base64")}`;
     } catch (e) {
-      strapi.log.error(e);
+      const reason = e instanceof Error ? e.message : String(e);
+      strapi.log.error(`[placeholder] Could not generate a placeholder for ${url}: ${reason}`);
       return null;
     }
   }

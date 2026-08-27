@@ -8,13 +8,10 @@ last released in May 2023 for Strapi v4.
 
 ## 🖌️ Supported Content
 
-The Placeholder plugin currently supports the following formats:
-
-- JPEG
-- PNG
-- GIF
-- TIFF
-- SVG
+Any image sharp can decode, which covers JPEG, PNG, WebP, AVIF, TIFF, GIF and SVG —
+vectors are rasterised through librsvg, so a blurred placeholder can sit behind an SVG
+hero background. A file sharp cannot decode is left without a placeholder and the reason
+is logged.
 
 ## ✨ Supported Strapi Versions
 
@@ -49,21 +46,32 @@ reports everything as up to date and keeps the previous build. Use
 
 ### Enable The Plugin
 
-Open or create the file `config/plugins.js` and enable the plugin by adding the following snippet:
+Open or create the file `config/plugins.ts` and enable the plugin:
 
-```js
-module.exports = {
+```ts
+export default {
   // ...
   placeholder: {
     enabled: true,
     config: {
-      size: 10,
+      size: 16,
+      format: 'webp',
+      quality: 20,
     },
   },
 };
 ```
 
-For more information regarding the `size` param, refer to the [Plaiceholder docs](https://plaiceholder.co/).
+| Option        | Default  | Description                                            |
+| ------------- | -------- | ------------------------------------------------------ |
+| `size`        | `16`     | Longest edge of the placeholder in pixels, `4`–`64`    |
+| `format`      | `'webp'` | Output format: `'webp'`, `'jpeg'`, `'png'` or `'avif'` |
+| `quality`     | `20`     | Encoder quality, `1`–`100`                             |
+| `removeAlpha` | `false`  | Drop the alpha channel before encoding                 |
+
+`format` matters more than `size`: at placeholder dimensions a PNG spends almost
+everything on headers, so the same image is roughly 10 KB as a 64px PNG, 840 bytes as a
+16px PNG and 95 bytes as a 16px WebP.
 
 ### Generate Placeholders For Existing Images
 

@@ -41,7 +41,6 @@
     "npm": ">=6.0.0"
   },
   "dependencies": {
-    "plaiceholder": "^2.3.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
@@ -50,11 +49,12 @@
     "@strapi/typescript-utils": "^5.41.1",
     "@types/mime-types": "^2.1.4",
     "prettier": "^3.8.0",
+    "sharp": "^0.35.3",
     "typescript": "^5.0.0"
   },
   "peerDependencies": {
     "@strapi/strapi": "^5.0.0",
     "mime-types": "^2.1.35",
-    "sharp": "^0.33.5"
+    "sharp": ">=0.33.5"
   }
 }

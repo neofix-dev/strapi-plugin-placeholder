@@ -8,6 +8,9 @@ declare const _default: {
     config: {
         default: {
             size: number;
+            format: "webp";
+            quality: number;
+            removeAlpha: false;
         };
         validator(config: unknown): void;
     };
@@ -20,8 +23,8 @@ declare const _default: {
         settings: ({ strapi }: {
             strapi: import('@strapi/types/dist/core').Strapi;
         }) => {
-            get(): import('./services/settings').PluginSettings;
-            set(newSettings: import('./services/settings').PluginSettings): import('./services/settings').PluginSettings;
+            get(): import('./config').PlaceholderSettings;
+            set(newSettings: import('./config').PlaceholderConfig): import('./config').PlaceholderConfig;
         };
     };
 };
