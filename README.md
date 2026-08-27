@@ -2,8 +2,14 @@
 
 Generate base64 placeholders for [Strapi](https://strapi.io/) images.
 
+Internal to NeoFix — this package is not published to npm. It is a fork of the
+[upstream plugin](https://github.com/WalkingPizza/strapi-plugin-placeholder), which was
+last released in May 2023 for Strapi v4.
+
 ## 🖌️ Supported Content
+
 The Placeholder plugin currently supports the following formats:
+
 - JPEG
 - PNG
 - GIF
@@ -12,17 +18,32 @@ The Placeholder plugin currently supports the following formats:
 
 ## ✨ Supported Strapi Versions
 
-The Placeholder plugin is only compatible with Strapi v4.
+Strapi v5.
 
 ## ⚙️ Installation
 
-```bash
-# if you use NPM
-npm install strapi-plugin-placeholder
+The plugin is consumed straight from this repository, pinned to a tag. Add it to the
+`dependencies` of the CMS that needs it:
 
-# if you use Yarn
-yarn add strapi-plugin-placeholder
+```json
+"strapi-plugin-placeholder": "neofix-dev/strapi-plugin-placeholder#v5.1.0"
 ```
+
+### Releasing A Change
+
+`dist/` is committed and there is no `prepare` script, so nothing is built at install
+time — the tag is installed exactly as it was committed.
+
+1. Change the sources under `server/src/`.
+2. `yarn build`, then commit `dist/` **in the same commit**. Skipping this ships the
+   previous build under a new tag, silently and without an error.
+3. Tag the commit and push it.
+4. Point each CMS at the new tag and reinstall.
+
+A branch works in place of a tag while testing, but package managers pin the resolved
+commit in their lockfile: after pushing another commit to the branch, `pnpm install`
+reports everything as up to date and keeps the previous build. Use
+`pnpm update strapi-plugin-placeholder` instead.
 
 ## 🔧 Configuration
 

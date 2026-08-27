@@ -15,7 +15,7 @@ declare const _default: {
         generator: ({ strapi }: {
             strapi: import('@strapi/types/dist/core').Strapi;
         }) => {
-            generate(url: string): Promise<string>;
+            generate(url: string): Promise<string | null>;
         };
         settings: ({ strapi }: {
             strapi: import('@strapi/types/dist/core').Strapi;

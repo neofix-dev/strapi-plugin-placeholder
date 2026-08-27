@@ -8,6 +8,7 @@
     "url": "https://github.com/neofix-dev/strapi-plugin-placeholder"
   },
   "license": "MIT",
+  "private": true,
   "type": "commonjs",
   "exports": {
     "./package.json": "./package.json",
@@ -27,7 +28,7 @@
     "watch": "strapi-plugin watch",
     "watch:link": "strapi-plugin watch:link",
     "verify": "strapi-plugin verify",
-    "test:ts:back": "run -T tsc -p server/tsconfig.json"
+    "test:ts:back": "tsc -p server/tsconfig.json"
   },
   "strapi": {
     "name": "placeholder",
@@ -39,20 +40,12 @@
     "node": ">=20.0.0 <=24.x.x",
     "npm": ">=6.0.0"
   },
-  "keywords": [
-    "strapi",
-    "strapi plugin",
-    "placeholder",
-    "plaiceholder",
-    "next",
-    "nextjs"
-  ],
   "dependencies": {
     "plaiceholder": "^2.3.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
-    "@strapi/sdk-plugin": "^6.0.1",
+    "@strapi/sdk-plugin": "^6.1.1",
     "@strapi/strapi": "^5.41.1",
     "@strapi/typescript-utils": "^5.41.1",
     "@types/mime-types": "^2.1.4",
