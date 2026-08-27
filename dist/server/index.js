@@ -23,22 +23,28 @@ const canGeneratePlaceholder = (file) => {
   }
   return Boolean(mime?.startsWith("image/") && file.url);
 };
+const targetsSingleFile = (where) => {
+  const identifier = where?.documentId ?? where?.id;
+  return typeof identifier === "string" || typeof identifier === "number";
+};
 const bootstrap = ({ strapi }) => {
   const generatePlaceholder = async (event) => {
     const { data, where } = event.params;
     if (!data) return;
-    if (!data.url || !data.mime) {
-      const documentId = where?.documentId || where?.id;
-      if (documentId) {
-        const file = await strapi.documents("plugin::upload.file").findOne({
-          documentId
-        });
-        if (file) {
-          data.url = data.url ?? file.url;
-          data.mime = data.mime ?? file.mime;
-        }
+    let storedFile = null;
+    if (where) {
+      if (!targetsSingleFile(where)) return;
+      storedFile = await strapi.db.query("plugin::upload.file").findOne({
+        select: ["url", "mime", "name", "placeholder"],
+        where
+      });
+      if (storedFile) {
+        data.url = data.url ?? storedFile.url;
+        data.mime = data.mime ?? storedFile.mime;
       }
     }
+    const isUrlChanging = Boolean(data.url && data.url !== storedFile?.url);
+    if (!isUrlChanging && storedFile?.placeholder) return;
     if (!canGeneratePlaceholder(data)) return;
     const generatorService = getService(strapi, "generator");
     data.placeholder = await generatorService.generate(data.url);
