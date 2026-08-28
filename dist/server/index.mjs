@@ -41,7 +41,7 @@ const bootstrap = ({ strapi }) => {
     if (!isUrlChanging && storedFile?.placeholder) return;
     if (!canGeneratePlaceholder(data)) return;
     const generatorService = getService(strapi, "generator");
-    data.placeholder = await generatorService.generate(data.url);
+    data.placeholder = await generatorService.generate(data.url) ?? "";
   };
   strapi.db.lifecycles.subscribe({
     models: ["plugin::upload.file"],

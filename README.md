@@ -89,6 +89,11 @@ Updates that address more than one file are skipped entirely. The data of an upd
 applied to every row its where clause matches, so a bulk folder move would otherwise
 stamp one file's placeholder onto the whole selection.
 
+An image the generator cannot read stores the empty string rather than null. Consumers
+tend to expose the column through a non-nullable field, where a null is a hard error
+instead of a missing blur, and an empty placeholder is still falsy — so the file is
+attempted again the next time it is touched.
+
 ### Generate Placeholders For Existing Images
 
 Changing `size`, `format` or `quality` does not rewrite the placeholders already stored.
@@ -97,6 +102,7 @@ To backfill the media library, add a one-off, env-gated step to the host project
 
 ```ts
 const BATCH_SIZE = 100;
+const ATTEMPTS = 3;
 
 export default {
   register() {},
@@ -105,12 +111,21 @@ export default {
     if (process.env.BACKFILL_PLACEHOLDERS !== 'true') return;
 
     const generator = strapi.plugin('placeholder').service('generator');
+    let cursor = 0;
     let processed = 0;
+    let failed = 0;
 
     for (;;) {
+      // Paginated by an id cursor rather than by re-running the `placeholder IS NULL`
+      // query. The cursor guarantees the loop moves forward whatever ends up written,
+      // so termination never depends on the value stored for a file that fails.
       const files = await strapi.db.query('plugin::upload.file').findMany({
         select: ['id', 'url'],
-        where: { mime: { $startsWith: 'image/' }, placeholder: { $null: true } },
+        where: {
+          id: { $gt: cursor },
+          mime: { $startsWith: 'image/' },
+          placeholder: { $null: true },
+        },
         orderBy: { id: 'asc' },
         limit: BATCH_SIZE,
       });
@@ -118,27 +133,67 @@ export default {
       if (files.length === 0) break;
 
       for (const file of files) {
-        const placeholder = await generator.generate(file.url);
+        let placeholder = null;
 
-        // Store an empty string rather than null for files that cannot be processed,
-        // otherwise the query above keeps returning them and the loop never ends.
-        await strapi.db.query('plugin::upload.file').update({
-          where: { id: file.id },
-          data: { placeholder: placeholder ?? '' },
-        });
+        // A placeholder is one download away from the upload provider, so a failure is
+        // as likely to be a blip as it is to be an unusable file. Retrying separates the
+        // two: what still fails after several attempts is treated as permanent.
+        for (let attempt = 1; attempt <= ATTEMPTS && placeholder === null; attempt += 1) {
+          if (attempt > 1) {
+            await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+          }
+
+          placeholder = await generator.generate(file.url);
+        }
+
+        if (placeholder === null) failed += 1;
+
+        // Written through knex rather than `strapi.db.query().update()`. That path fires
+        // the plugin's own beforeUpdate hook, which finds the stored placeholder still
+        // empty, downloads the image a second time and overwrites what is written here —
+        // doubling the traffic, and undoing the record of a file that cannot be decoded.
+        await strapi.db
+          .connection('files')
+          .where({ id: file.id })
+          .update({ placeholder: placeholder ?? '' });
       }
 
+      cursor = files[files.length - 1].id;
       processed += files.length;
-      strapi.log.info(`[placeholder] backfilled ${processed} files`);
+      strapi.log.info(`[placeholder] ${processed} processed, ${failed} failed`);
     }
+
+    strapi.log.info(`[placeholder] done: ${processed} processed, ${failed} failed`);
   },
 };
 ```
 
-To regenerate everything after a config change, clear the column first:
+Remove the block once the backfill has run.
+
+To regenerate everything after a config change, clear the column first — a file that
+already has a placeholder is skipped, so reinstalling the plugin on its own changes
+nothing for existing rows:
 
 ```sql
 UPDATE files SET placeholder = NULL WHERE mime LIKE 'image/%';
 ```
 
-Remove the block once the backfill has run.
+Afterwards, the spread of what was written is worth a look. Anything left as the empty
+string is a file the generator could not read — most often a row whose URL no longer
+resolves at the upload provider:
+
+```sql
+SELECT CASE WHEN placeholder = '' THEN 'failed' ELSE 'generated' END AS kind,
+       count(*) AS files,
+       round(avg(length(placeholder))) AS avg_chars,
+       pg_size_pretty(sum(length(placeholder))::bigint) AS total
+FROM files
+WHERE mime LIKE 'image/%'
+GROUP BY 1;
+```
+
+Note that Strapi's own logger config can hide the reason. `@strapi/logger`'s
+`formats.levelFilter` is an exact-match allowlist and not a severity threshold, so a
+host project combining it with a single `info` level discards every `error` record —
+including the `[placeholder] Could not generate a placeholder for …` line that explains
+each failure.

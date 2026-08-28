@@ -90,7 +90,13 @@ const bootstrap = ({ strapi }: { strapi: Core.Strapi }) => {
     if (!canGeneratePlaceholder(data)) return;
 
     const generatorService = getService(strapi, 'generator');
-    data.placeholder = await generatorService.generate(data.url);
+
+    // The empty string, rather than null, is what a failure is stored as. The column is
+    // exposed through a non-nullable GraphQL field by the consuming BFF, where a null is
+    // a hard error that nulls out the surrounding object rather than merely a missing
+    // blur. It is not a tombstone either: the guard above tests truthiness, so an empty
+    // placeholder is attempted again the next time the file is updated.
+    data.placeholder = (await generatorService.generate(data.url)) ?? '';
   };
 
   strapi.db.lifecycles.subscribe({
