@@ -96,36 +96,50 @@ attempted again the next time it is touched.
 
 ### Generate Placeholders For Existing Images
 
-Changing `size`, `format` or `quality` does not rewrite the placeholders already stored.
-To backfill the media library, add a one-off, env-gated step to the host project's
-`src/index.ts` and start Strapi once with `BACKFILL_PLACEHOLDERS=true`:
+Changing `size`, `format` or `quality` does not rewrite the placeholders already stored,
+and neither does upgrading the plugin. To bring an existing media library over, add a
+one-off, env-gated module to the host project and set `BACKFILL_PLACEHOLDERS=true`.
+
+`src/backfill-placeholders.ts`:
 
 ```ts
+import type { Core } from '@strapi/strapi';
+
 const BATCH_SIZE = 100;
-const ATTEMPTS = 3;
 
-export default {
-  register() {},
+// Waited before each retry. Spread over seconds rather than milliseconds: a failure
+// here is usually the upload provider rate-limiting a long run of sequential requests,
+// and that does not clear within a few hundred milliseconds. A run that retried three
+// times inside two seconds still lost four perfectly healthy images to it.
+const RETRY_DELAYS_MS = [2_000, 5_000, 10_000];
 
-  async bootstrap({ strapi }) {
-    if (process.env.BACKFILL_PLACEHOLDERS !== 'true') return;
+export const backfillPlaceholders = async ({ strapi }: { strapi: Core.Strapi }) => {
+  if (process.env.BACKFILL_PLACEHOLDERS !== 'true') return;
 
+  // Nothing awaits this function, so an escaping error would surface as an unhandled
+  // rejection and take the whole process down with it. A failed backfill must never
+  // cost more than the backfill.
+  try {
     const generator = strapi.plugin('placeholder').service('generator');
-    let cursor = 0;
+    // Resume point for a run that was interrupted: the id logged with the last
+    // completed batch, passed back in as BACKFILL_FROM_ID.
+    let cursor = Number(process.env.BACKFILL_FROM_ID ?? 0);
     let processed = 0;
     let failed = 0;
 
+    strapi.log.info(`[backfill] starting from id ${cursor}`);
+
     for (;;) {
-      // Paginated by an id cursor rather than by re-running the `placeholder IS NULL`
-      // query. The cursor guarantees the loop moves forward whatever ends up written,
-      // so termination never depends on the value stored for a file that fails.
+      // Every image is regenerated, so the selection is not narrowed by the current
+      // value of the column. That keeps each row on its old placeholder right up to
+      // the moment it is replaced — clearing the column up front would instead leave
+      // every row empty for the length of the run.
+      //
+      // The id cursor is what ends the loop. It advances regardless of what is
+      // written, so termination never depends on the outcome of a single file.
       const files = await strapi.db.query('plugin::upload.file').findMany({
         select: ['id', 'url'],
-        where: {
-          id: { $gt: cursor },
-          mime: { $startsWith: 'image/' },
-          placeholder: { $null: true },
-        },
+        where: { id: { $gt: cursor }, mime: { $startsWith: 'image/' } },
         orderBy: { id: 'asc' },
         limit: BATCH_SIZE,
       });
@@ -133,25 +147,25 @@ export default {
       if (files.length === 0) break;
 
       for (const file of files) {
-        let placeholder = null;
+        let placeholder = await generator.generate(file.url);
 
-        // A placeholder is one download away from the upload provider, so a failure is
-        // as likely to be a blip as it is to be an unusable file. Retrying separates the
-        // two: what still fails after several attempts is treated as permanent.
-        for (let attempt = 1; attempt <= ATTEMPTS && placeholder === null; attempt += 1) {
-          if (attempt > 1) {
-            await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
-          }
+        for (const delay of RETRY_DELAYS_MS) {
+          if (placeholder !== null) break;
 
+          await new Promise((resolve) => setTimeout(resolve, delay));
           placeholder = await generator.generate(file.url);
         }
 
-        if (placeholder === null) failed += 1;
+        if (placeholder === null) {
+          failed += 1;
+          // Named at info rather than error on purpose — see the note on levelFilter
+          // below. A bare failure count with nothing to explain it is not much use.
+          strapi.log.info(`[backfill] gave up on ${file.id} ${file.url}`);
+        }
 
-        // Written through knex rather than `strapi.db.query().update()`. That path fires
-        // the plugin's own beforeUpdate hook, which finds the stored placeholder still
-        // empty, downloads the image a second time and overwrites what is written here —
-        // doubling the traffic, and undoing the record of a file that cannot be decoded.
+        // Written through knex rather than `strapi.db.query().update()`. That path
+        // fires this plugin's own beforeUpdate hook, which would download the image a
+        // second time and overwrite what is written here.
         await strapi.db
           .connection('files')
           .where({ id: file.id })
@@ -160,30 +174,52 @@ export default {
 
       cursor = files[files.length - 1].id;
       processed += files.length;
-      strapi.log.info(`[placeholder] ${processed} processed, ${failed} failed`);
+      strapi.log.info(`[backfill] ${processed} processed, ${failed} failed, last id ${cursor}`);
     }
 
-    strapi.log.info(`[placeholder] done: ${processed} processed, ${failed} failed`);
+    strapi.log.info(`[backfill] done: ${processed} processed, ${failed} failed`);
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
+    strapi.log.info(`[backfill] aborted: ${reason}`);
+  }
+};
+```
+
+`src/index.ts`:
+
+```ts
+import { backfillPlaceholders } from './backfill-placeholders';
+
+export default {
+  register() {},
+
+  bootstrap({ strapi }) {
+    // Deliberately not awaited. Bootstrap runs before Strapi starts listening, and the
+    // backfill takes minutes: awaiting it would leave the health endpoint unanswered
+    // long enough for an orchestrator to call the container dead and restart it, over
+    // and over, never getting further than the first few files. Left unawaited, Strapi
+    // serves normally while the backfill works through the library behind it.
+    void backfillPlaceholders({ strapi });
   },
 };
 ```
 
-Remove the block once the backfill has run.
+Set the variable, deploy, wait for the `done` line, then unset it and deploy again.
+While it is set the run repeats on every restart, which wastes bandwidth rather than
+corrupting anything. Delete both files once every environment has been migrated.
 
-To regenerate everything after a config change, clear the column first — a file that
-already has a placeholder is skipped, so reinstalling the plugin on its own changes
-nothing for existing rows:
-
-```sql
-UPDATE files SET placeholder = NULL WHERE mime LIKE 'image/%';
-```
+The pass is idempotent, and running it twice is worth doing: it regenerates every row
+rather than only the ones missing a placeholder, so a second run costs nothing but time
+and repairs whatever the first lost to a transient failure.
 
 Afterwards, the spread of what was written is worth a look. Anything left as the empty
 string is a file the generator could not read — most often a row whose URL no longer
 resolves at the upload provider:
 
 ```sql
-SELECT CASE WHEN placeholder = '' THEN 'failed' ELSE 'generated' END AS kind,
+SELECT CASE WHEN placeholder = '' THEN 'failed'
+            WHEN placeholder IS NULL THEN 'never attempted'
+            ELSE 'generated' END AS kind,
        count(*) AS files,
        round(avg(length(placeholder))) AS avg_chars,
        pg_size_pretty(sum(length(placeholder))::bigint) AS total
@@ -192,8 +228,8 @@ WHERE mime LIKE 'image/%'
 GROUP BY 1;
 ```
 
-Note that Strapi's own logger config can hide the reason. `@strapi/logger`'s
+Note that Strapi's own logger config can hide the reason a file failed. `@strapi/logger`'s
 `formats.levelFilter` is an exact-match allowlist and not a severity threshold, so a
 host project combining it with a single `info` level discards every `error` record —
 including the `[placeholder] Could not generate a placeholder for …` line that explains
-each failure.
+each failure. That is why the loop above names its own failures at info level.
