@@ -138,7 +138,7 @@ export const backfillPlaceholders = async ({ strapi }: { strapi: Core.Strapi }) 
       // The id cursor is what ends the loop. It advances regardless of what is
       // written, so termination never depends on the outcome of a single file.
       const files = await strapi.db.query('plugin::upload.file').findMany({
-        select: ['id', 'url'],
+        select: ['id', 'url', 'placeholder'],
         where: { id: { $gt: cursor }, mime: { $startsWith: 'image/' } },
         orderBy: { id: 'asc' },
         limit: BATCH_SIZE,
@@ -166,10 +166,14 @@ export const backfillPlaceholders = async ({ strapi }: { strapi: Core.Strapi }) 
         // Written through knex rather than `strapi.db.query().update()`. That path
         // fires this plugin's own beforeUpdate hook, which would download the image a
         // second time and overwrite what is written here.
+        //
+        // A file that could not be generated keeps whatever it already had: a
+        // transient failure on a healthy image must not cost it a working blur.
+        // Only a row that has never had one falls back to the empty string.
         await strapi.db
           .connection('files')
           .where({ id: file.id })
-          .update({ placeholder: placeholder ?? '' });
+          .update({ placeholder: placeholder ?? file.placeholder ?? '' });
       }
 
       cursor = files[files.length - 1].id;
@@ -212,21 +216,26 @@ The pass is idempotent, and running it twice is worth doing: it regenerates ever
 rather than only the ones missing a placeholder, so a second run costs nothing but time
 and repairs whatever the first lost to a transient failure.
 
-Afterwards, the spread of what was written is worth a look. Anything left as the empty
-string is a file the generator could not read — most often a row whose URL no longer
-resolves at the upload provider:
+Afterwards, the spread of what was written is worth a look. Group by the format the
+data URL declares rather than by success and failure: a file the generator could not
+read keeps whatever it had, so anything still in the old format is a file the run did
+not manage to convert. Only rows that failed and had nothing to keep are empty.
 
 ```sql
-SELECT CASE WHEN placeholder = '' THEN 'failed'
+SELECT CASE WHEN placeholder = '' THEN 'failed, nothing kept'
             WHEN placeholder IS NULL THEN 'never attempted'
-            ELSE 'generated' END AS kind,
+            ELSE split_part(split_part(placeholder, ';', 1), '/', 2) END AS kind,
        count(*) AS files,
        round(avg(length(placeholder))) AS avg_chars,
        pg_size_pretty(sum(length(placeholder))::bigint) AS total
 FROM files
 WHERE mime LIKE 'image/%'
-GROUP BY 1;
+GROUP BY 1
+ORDER BY 2 DESC;
 ```
+
+The `gave up on` lines in the log name every file the run could not convert, which is
+the list to compare against anything left in the old format.
 
 Note that Strapi's own logger config can hide the reason a file failed. `@strapi/logger`'s
 `formats.levelFilter` is an exact-match allowlist and not a severity threshold, so a
