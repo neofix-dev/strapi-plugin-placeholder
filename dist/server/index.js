@@ -13,6 +13,14 @@ const PLUGIN_ID = "placeholder";
 const getService = (strapi, serviceName) => {
   return strapi.plugin(PLUGIN_ID).service(serviceName);
 };
+const FILE_CONTENT_FIELDS = [
+  "hash",
+  "ext",
+  "size",
+  "width",
+  "height",
+  "formats"
+];
 const canGeneratePlaceholder = (file) => {
   let mime = file.mime;
   if (!mime && file.name) {
@@ -43,8 +51,8 @@ const bootstrap = ({ strapi }) => {
         data.mime = data.mime ?? storedFile.mime;
       }
     }
-    const isUrlChanging = Boolean(data.url && data.url !== storedFile?.url);
-    if (!isUrlChanging && storedFile?.placeholder) return;
+    const carriesNewBytes = FILE_CONTENT_FIELDS.some((field) => data[field] !== void 0);
+    if (!carriesNewBytes && storedFile?.placeholder) return;
     if (!canGeneratePlaceholder(data)) return;
     const generatorService = getService(strapi, "generator");
     data.placeholder = await generatorService.generate(data.url) ?? "";

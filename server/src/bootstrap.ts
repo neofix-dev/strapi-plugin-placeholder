@@ -7,9 +7,34 @@ interface FileData {
   mime?: string;
   name?: string;
   placeholder?: string | null;
+  hash?: string;
+  ext?: string;
+  size?: number;
+  width?: number;
+  height?: number;
+  formats?: unknown;
 }
 
 type WhereClause = Record<string, unknown> | undefined;
+
+/**
+ * The fields that describe the bytes behind a file, as opposed to the metadata about it.
+ *
+ * An update that carries any of them is bringing a new image. `updateFileInfo` in
+ * @strapi/upload passes name, alternativeText, caption, focalPoint and folder and
+ * nothing else, while `replace` passes the whole validated file. The url is no help
+ * here: replacing a file deliberately reuses its hash and extension so that the url
+ * stays stable, which is exactly why a replacement cannot be told from a rename by
+ * looking at it.
+ */
+const FILE_CONTENT_FIELDS: readonly (keyof FileData)[] = [
+  'hash',
+  'ext',
+  'size',
+  'width',
+  'height',
+  'formats',
+];
 
 /**
  * Checks whether the passed file has a MIME type that is supported by the plugin,
@@ -78,14 +103,19 @@ const bootstrap = ({ strapi }: { strapi: Core.Strapi }) => {
       }
     }
 
-    const isUrlChanging = Boolean(data.url && data.url !== storedFile?.url);
+    const carriesNewBytes = FILE_CONTENT_FIELDS.some((field) => data[field] !== undefined);
 
     // Nothing to do for metadata-only edits: renaming a file, editing its alternative
     // text or moving it between folders must not re-download the image from the upload
     // provider only to produce the very same placeholder again. A file that has no
     // placeholder yet still gets one here, which backfills older uploads as they are
     // touched.
-    if (!isUrlChanging && storedFile?.placeholder) return;
+    //
+    // Deliberately phrased as "skip only what is visibly metadata-only" rather than
+    // "regenerate only what is visibly new". FILE_CONTENT_FIELDS describes Strapi's
+    // internals, which are free to change; with the condition this way round such a
+    // change costs a redundant download instead of leaving a stale placeholder behind.
+    if (!carriesNewBytes && storedFile?.placeholder) return;
 
     if (!canGeneratePlaceholder(data)) return;
 
